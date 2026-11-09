@@ -9,94 +9,93 @@ name: build-ios
 
 on:
   workflow_dispatch:
-    push:
-        branches: [ main ]
+  push:
+    branches: [ main ]
 
-        jobs:
-          build:
-              runs-on: macos-latest
+jobs:
+  build:
+    runs-on: macos-latest
 
-                  steps:
-                        - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-                              - name: 解包源码
-                                      run: |
-                                                python3 - <<'PY'
-                                                          import base64
-                                                                    raw = base64.b64decode(open('payload.b64','rb').read())
-                                                                              open('/tmp/src.zip','wb').write(raw)
-                                                                                        print('zip bytes:', len(raw))
-                                                                                                  PY
-                                                                                                            unzip -q /tmp/src.zip -d .
-                                                                                                                      echo "--- 解包结果 ---"
-                                                                                                                                ls -la
-                                                                                                                                          test -d ios/tweak && echo "OK ios/tweak"
-                                                                                                                                                    test -d tooling && echo "OK tooling"
-                                                                                                                                                              test -d server && echo "OK server"
-                                                                                                                                                              
-                                                                                                                                                                    - name: 环境信息
-                                                                                                                                                                            run: |
-                                                                                                                                                                                      sw_vers
-                                                                                                                                                                                                xcodebuild -version
-                                                                                                                                                                                                          clang --version | head -1
-                                                                                                                                                                                                                    python3 --version
-                                                                                                                                                                                                                    
-                                                                                                                                                                                                                          - name: 安装 Theos + ldid
-                                                                                                                                                                                                                                  run: |
-                                                                                                                                                                                                                                            brew install ldid xz || true
-                                                                                                                                                                                                                                                      export THEOS="$HOME/theos"
-                                                                                                                                                                                                                                                                if [ ! -d "$THEOS" ]; then
-                                                                                                                                                                                                                                                                            git clone --recursive --depth 1 https://github.com/theos/theos.git "$THEOS"
-                                                                                                                                                                                                                                                                                      fi
-                                                                                                                                                                                                                                                                                                echo "THEOS=$THEOS" >> "$GITHUB_ENV"
-                                                                                                                                                                                                                                                                                                          echo "THEOS_MAKE_PATH=$THEOS/makefiles" >> "$GITHUB_ENV"
-                                                                                                                                                                                                                                                                                                                    ls "$THEOS" | head -5
-                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                          - name: 通道互通测试
-                                                                                                                                                                                                                                                                                                                                  run: python3 tooling/interop_test.py
-                                                                                                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                                                                                        - name: 服务端向量回归
-                                                                                                                                                                                                                                                                                                                                                run: |
-                                                                                                                                                                                                                                                                                                                                                          python3 server/crypto.py
-                                                                                                                                                                                                                                                                                                                                                                    python3 tooling/bip39.py
-                                                                                                                                                                                                                                                                                                                                                                              python3 tooling/keystore.py
-                                                                                                                                                                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                                                                                                                                                                    - name: 编译 tweak（rootless）
-                                                                                                                                                                                                                                                                                                                                                                                            run: |
-                                                                                                                                                                                                                                                                                                                                                                                                      cd ios/tweak
-                                                                                                                                                                                                                                                                                                                                                                                                                make clean || true
-                                                                                                                                                                                                                                                                                                                                                                                                                          make package DEBUG=0 FINALPACKAGE=1 ROOTLESS=1
-                                                                                                                                                                                                                                                                                                                                                                                                                                    mkdir -p ../../dist
-                                                                                                                                                                                                                                                                                                                                                                                                                                              cp packages/*.deb ../../dist/ 2>/dev/null || true
-                                                                                                                                                                                                                                                                                                                                                                                                                                                        ls -la packages/ | tail -5
-                                                                                                                                                                                                                                                                                                                                                                                                                                                        
-                                                                                                                                                                                                                                                                                                                                                                                                                                                              - name: 编译 tweak（rootful）
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                      continue-on-error: true
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                              run: |
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        cd ios/tweak
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  make clean || true
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            make package DEBUG=0 FINALPACKAGE=1
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      cp packages/*.deb ../../dist/ 2>/dev/null || true
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            - name: 编译 TrollStore IPA
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    continue-on-error: true
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            run: |
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      cd ios/trollstore
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                make clean || true
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          make package DEBUG=0 FINALPACKAGE=1
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    mkdir -p ../../dist
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              cp build/*.ipa ../../dist/ 2>/dev/null || true
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ls -la ../../dist/ || true
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              - name: 上传产物
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      uses: actions/upload-artifact@v4
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              if: always()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      with:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                name: k8farm-ios
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          path: |
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      dist/**
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ios/tweak/packages/*.deb
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ios/trollstore/build/*.ipa
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        if-no-files-found: warn
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  retention-days: 90
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+      - name: 解包源码
+        run: |
+          python3 - <<'PY'
+          import base64
+          raw = base64.b64decode(open('payload.b64','rb').read())
+          open('/tmp/src.zip','wb').write(raw)
+          print('zip bytes:', len(raw))
+          PY
+          unzip -q /tmp/src.zip -d .
+          echo "--- 解包结果 ---"
+          ls -la
+          test -d ios/tweak && echo "OK ios/tweak"
+          test -d tooling && echo "OK tooling"
+          test -d server && echo "OK server"
+
+      - name: 环境信息
+        run: |
+          sw_vers
+          xcodebuild -version
+          clang --version | head -1
+          python3 --version
+
+      - name: 安装 Theos + ldid
+        run: |
+          brew install ldid xz || true
+          export THEOS="$HOME/theos"
+          if [ ! -d "$THEOS" ]; then
+            git clone --recursive --depth 1 https://github.com/theos/theos.git "$THEOS"
+          fi
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+          echo "THEOS_MAKE_PATH=$THEOS/makefiles" >> "$GITHUB_ENV"
+          ls "$THEOS" | head -5
+
+      - name: 通道互通测试
+        run: python3 tooling/interop_test.py
+
+      - name: 服务端向量回归
+        run: |
+          python3 server/crypto.py
+          python3 tooling/bip39.py
+          python3 tooling/keystore.py
+
+      - name: 编译 tweak（rootless）
+        run: |
+          cd ios/tweak
+          make clean || true
+          make package DEBUG=0 FINALPACKAGE=1 ROOTLESS=1
+          mkdir -p ../../dist
+          cp packages/*.deb ../../dist/ 2>/dev/null || true
+          ls -la packages/ | tail -5
+
+      - name: 编译 tweak（rootful）
+        continue-on-error: true
+        run: |
+          cd ios/tweak
+          make clean || true
+          make package DEBUG=0 FINALPACKAGE=1
+          cp packages/*.deb ../../dist/ 2>/dev/null || true
+
+      - name: 编译 TrollStore IPA
+        continue-on-error: true
+        run: |
+          cd ios/trollstore
+          make clean || true
+          make package DEBUG=0 FINALPACKAGE=1
+          mkdir -p ../../dist
+          cp build/*.ipa ../../dist/ 2>/dev/null || true
+          ls -la ../../dist/ || true
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k8farm-ios
+          path: |
+            dist/**
+            ios/tweak/packages/*.deb
+            ios/trollstore/build/*.ipa
+          if-no-files-found: warn
+          retention-days: 90
