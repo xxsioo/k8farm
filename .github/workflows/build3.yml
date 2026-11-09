@@ -1,0 +1,22 @@
+name: build-ios
+on: [workflow_dispatch, push]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: unpack
+        run: |
+          python3 -c "import base64;open('/tmp/s.zip','wb').write(base64.b64decode(open('payload3.b64','rb').read()))"
+          unzip -q /tmp/s.zip -d .
+          chmod +x .ci/build.sh
+          bash .ci/build.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k8farm-ios
+          path: |
+            dist/**
+            ios/tweak/packages/*.deb
+          retention-days: 90
