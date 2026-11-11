@@ -25,8 +25,11 @@ jobs:
 
       - name: 解包源码
         run: |
-          base64 -d payloadF.b64 > /tmp/src.zip || base64 -D payloadF.b64 > /tmp/src.zip
-          ls -l /tmp/src.zip
+          # 关键：macOS(BSD) base64 的 -d 是'忽略非法字符'，解码必须 -D。
+          # 用 openssl 最稳（跨平台一致语义）。
+          openssl base64 -d -in payloadF.b64 -out /tmp/src.zip
+          ls -l payloadF.b64 /tmp/src.zip
+          file /tmp/src.zip
           unzip -q /tmp/src.zip -d .
           chmod +x .ci/*.sh 2>/dev/null || true
           echo "--- unpacked ---"
