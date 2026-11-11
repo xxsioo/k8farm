@@ -1,8 +1,6 @@
 name: build-ios
 
-# 解包 payloadF.b64（单行 python3 -c，避免 heredoc 在 YAML 块里被缩进）
-# → 编译 payload dylib（路径 A 用）
-# → 顺带编越狱 tweak（可选，失败不影响）
+# 用 base64 -d 解包（macOS 自带），避开 python3 -c 在 YAML 块里的引号问题
 
 on:
   workflow_dispatch:
@@ -17,23 +15,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 诊断环境
+        run: |
+          pwd
+          ls -la payloadF.b64
+          wc -c payloadF.b64
+          which python3 base64 unzip
+          python3 --version
+
       - name: 解包源码
         run: |
-          python3 -c "import base64,pathlib; pathlib.Path('/tmp/src.zip').write_bytes(base64.b64decode(pathlib.Path('payloadF.b64').read_bytes()))"
+          base64 -d payloadF.b64 > /tmp/src.zip || base64 -D payloadF.b64 > /tmp/src.zip
           ls -l /tmp/src.zip
           unzip -q /tmp/src.zip -d .
           chmod +x .ci/*.sh 2>/dev/null || true
-          echo "--- 解包结果 ---"
+          echo "--- unpacked ---"
           ls -la
-          test -f ios/tweak/Collector.m && echo "OK Collector.m"
-          test -f ios/payload/k8hooks.m && echo "OK k8hooks.m"
-          test -f .ci/build-payload.sh && echo "OK build-payload.sh"
-
-      - name: 环境信息
-        run: |
-          sw_vers
-          xcodebuild -version
-          xcrun --sdk iphoneos --show-sdk-path
+          test -f ios/tweak/Collector.m && echo OK-Collector.m
+          test -f ios/payload/k8hooks.m && echo OK-k8hooks.m
+          test -f .ci/build-payload.sh && echo OK-build-payload.sh
 
       - name: 编译 payload dylib
         run: bash .ci/build-payload.sh
