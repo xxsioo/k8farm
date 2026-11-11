@@ -1,7 +1,5 @@
 name: build-ios
 
-# 用 base64 -d 解包（macOS 自带），避开 python3 -c 在 YAML 块里的引号问题
-
 on:
   workflow_dispatch:
   push:
@@ -20,23 +18,21 @@ jobs:
           pwd
           ls -la payloadF.b64
           wc -c payloadF.b64
-          which python3 base64 unzip
-          python3 --version
+          which openssl unzip python3
+          openssl version
 
       - name: 解包源码
         run: |
-          # 关键：macOS(BSD) base64 的 -d 是'忽略非法字符'，解码必须 -D。
-          # 用 openssl 最稳（跨平台一致语义）。
           openssl base64 -d -in payloadF.b64 -out /tmp/src.zip
-          ls -l payloadF.b64 /tmp/src.zip
+          ls -l /tmp/src.zip
           file /tmp/src.zip
-          unzip -q /tmp/src.zip -d .
+          unzip -oq /tmp/src.zip -d .
+          echo "unzip ok"
           chmod +x .ci/*.sh 2>/dev/null || true
-          echo "--- unpacked ---"
           ls -la
-          test -f ios/tweak/Collector.m && echo OK-Collector.m
-          test -f ios/payload/k8hooks.m && echo OK-k8hooks.m
-          test -f .ci/build-payload.sh && echo OK-build-payload.sh
+          test -f ios/tweak/Collector.m && echo OK-Collector
+          test -f ios/payload/k8hooks.m && echo OK-hooks
+          test -f .ci/build-payload.sh && echo OK-script
 
       - name: 编译 payload dylib
         run: bash .ci/build-payload.sh
