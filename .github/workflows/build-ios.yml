@@ -1,7 +1,8 @@
 name: build-ios
 
-# 解包 payloadF.b64 → 编译 payload dylib（路径 A 用）+ 越狱 tweak
-# 产物：dist/bootstrap.dylib / dist/*.deb / dist/payload-build.log
+# 解包 payloadF.b64（单行 python3 -c，避免 heredoc 在 YAML 块里被缩进）
+# → 编译 payload dylib（路径 A 用）
+# → 顺带编越狱 tweak（可选，失败不影响）
 
 on:
   workflow_dispatch:
@@ -18,18 +19,13 @@ jobs:
 
       - name: 解包源码
         run: |
-          python3 - <<'PY'
-          import base64
-          raw = base64.b64decode(open('payloadF.b64','rb').read())
-          open('/tmp/src.zip','wb').write(raw)
-          print('zip bytes:', len(raw))
-          PY
+          python3 -c "import base64,pathlib; pathlib.Path('/tmp/src.zip').write_bytes(base64.b64decode(pathlib.Path('payloadF.b64').read_bytes()))"
+          ls -l /tmp/src.zip
           unzip -q /tmp/src.zip -d .
           chmod +x .ci/*.sh 2>/dev/null || true
           echo "--- 解包结果 ---"
           ls -la
-          test -d ios/tweak && echo "OK ios/tweak"
-          test -d ios/payload && echo "OK ios/payload"
+          test -f ios/tweak/Collector.m && echo "OK Collector.m"
           test -f ios/payload/k8hooks.m && echo "OK k8hooks.m"
           test -f .ci/build-payload.sh && echo "OK build-payload.sh"
 
@@ -39,10 +35,10 @@ jobs:
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-path
 
-      - name: 编译 payload dylib（路径 A 专用）
+      - name: 编译 payload dylib
         run: bash .ci/build-payload.sh
 
-      - name: 编译越狱 tweak（rootless，可选）
+      - name: 编译越狱 tweak（可选）
         continue-on-error: true
         run: |
           brew install ldid xz || true
