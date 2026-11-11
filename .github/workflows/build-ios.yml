@@ -13,21 +13,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 诊断环境
+      - name: 诊断
         run: |
           pwd
           ls -la payloadF.b64
           wc -c payloadF.b64
-          which openssl unzip python3
-          openssl version
+          head -c 16 payloadF.b64
+          echo
+          which python3 openssl unzip
 
       - name: 解包源码
         run: |
-          openssl base64 -d -in payloadF.b64 -out /tmp/src.zip
+          python3 -c 'import base64,sys; raw=base64.b64decode(open("payloadF.b64","rb").read()); open("/tmp/src.zip","wb").write(raw); print("decoded", len(raw))'
           ls -l /tmp/src.zip
           file /tmp/src.zip
           unzip -oq /tmp/src.zip -d .
-          echo "unzip ok"
           chmod +x .ci/*.sh 2>/dev/null || true
           ls -la
           test -f ios/tweak/Collector.m && echo OK-Collector
